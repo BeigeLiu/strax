@@ -13,7 +13,7 @@ import time
     strax.Option('n_chunks',type=int,default=100000,track=False),
     strax.Option('read_all_samples',type=bool,default=False),
     strax.Option('time_range_per_chunk', type=int, default=800000000, track=False,help = 'in ns'),
-    strax.Option('filename',type=str,default=r"C:\Users\lbg\Desktop\run00002_raw_b0_seg2.bin",track=False)
+    strax.Option('filename',type=str,default=None,track=False)
 )
 
 
