@@ -1,2 +1,2 @@
 # strax
-Qing Group's TPC data analyse software
+Qing Group's TPC data analysis software
