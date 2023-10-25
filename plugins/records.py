@@ -7,6 +7,16 @@ export, __all__ = strax.exporter()
 __all__ += ['NO_PULSE_COUNTS']
 
 
+@strax.takes_config(
+    strax.Option('baseline_samples', type=int, default=40),
+    strax.Option('pmt_pulse_filter', infer_type= False, default=None, track=False),
+    strax.Option('save_outside_hits',type=tuple,default=(20,20)),
+    strax.Option('n_tpc_pmts', type=int, default=8, track=False),
+    strax.Option('check_raw_record_overlaps',type=bool,default=True,track=False),
+    strax.Option('allow_sloppy_chunking',type=bool,default=False,track=False),
+    strax.Option('hit_min_amplitude',type=int,default=10,track=False)
+)
+
 @export
 class PulseProcessing(Plugin):
     """
@@ -41,21 +51,23 @@ class PulseProcessing(Plugin):
         pulse_counts=SaveWhen.ALWAYS,
     )
 
+    def setup(self):
+        self.baseline_samples = 40
 
-    baseline_samples = 40
+        self.pmt_pulse_filter = None
 
-    # PMT pulse processing options
-    pmt_pulse_filter = None
+        self.save_outside_hits = (20,20)
 
-    save_outside_hits = (20,20)
+        self.n_tpc_pmts = 8
 
-    n_tpc_pmts = 8
+        self.check_raw_record_overlaps = True
 
-    check_raw_record_overlaps = True
+        self.allow_sloppy_chunking = False
 
-    allow_sloppy_chunking = False
+        self.hit_min_amplitude = 10
 
-    hit_min_amplitude = 15
+        self.hit_thresholds = self.hit_min_amplitude
+        return super().setup()
 
     def infer_dtype(self):
         # Get record_length from the plugin making raw_records
@@ -68,9 +80,6 @@ class PulseProcessing(Plugin):
         dtype['pulse_counts'] = pulse_count_dtype(self.n_tpc_pmts)
 
         return dtype
-
-    def setup(self):
-        self.hit_thresholds = self.hit_min_amplitude
 
     def compute(self, raw_records, start, end):
         # if self.check_raw_record_overlaps:

@@ -598,7 +598,6 @@ class Plugin:
         else:
             # This plugin starts from scratch
             start, end = None, None
-
         kwargs = {k: v.data for k, v in kwargs.items()}
         if self.compute_takes_chunk_i:
             kwargs['chunk_i'] = chunk_i

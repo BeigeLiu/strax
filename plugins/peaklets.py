@@ -9,6 +9,32 @@ from strax.dtypes import DIGITAL_SUM_WAVEFORM_CHANNEL
 
 export, __all__ = strax.exporter()
 
+@strax.takes_config(
+    strax.Option('peaklet_gap_threshold', type=int, default=500),
+    strax.Option('peak_left_extension', type=int, default=200, track=False),
+    strax.Option('peak_right_extension',type=int,default=200),
+    strax.Option('peak_split_gof_threshold', type=tuple, default=(None,
+                ((0.5, 1.0), (6.0, 0.4)),
+                ((2.5, 1.0), (5.625, 0.4))), track=False),
+
+    strax.Option('peak_split_filter_wing_width',type=int,default=70,track=False),
+    strax.Option('peak_split_min_area',type=int,default=40,track=False),
+    strax.Option('peak_split_iterations',type=int,default=20,track=False),
+    strax.Option('diagnose_sorting',type=bool,default=False,track=False),
+    strax.Option('gain_model',infer_type=False,default=None,track=False),
+    strax.Option('tight_coincidence_window_left',type=int,default=300,track=False),
+    strax.Option('tight_coincidence_window_right',type=int,default=300,track=False),
+    strax.Option('n_tpc_pmts',type=int,default=8,track=False),
+    strax.Option('n_top_pmts',type=int,default=4,track=False),
+    strax.Option('peak_min_pmts',type=int,default=2,track=False),
+    strax.Option('sum_waveform_top_array',type=bool,default=False,track=False),
+    strax.Option('saturation_correction_on',type=bool,default=False,track=False),
+    strax.Option('saturation_reference_length',type=int,default=100,track=False),
+    strax.Option('saturation_min_reference_length',type=int,default=20,track=False),
+    strax.Option('peaklet_max_duration',type=int,default=int(10e6),track=False),
+    strax.Option('channel_map',infer_type=False,default= immutabledict({'tpc':(0,7)}),track=False),
+    strax.Option('hit_min_amplitude',infer_type=False,default=10,track=False)
+)
 
 @export
 class Peaklets(Plugin):
@@ -32,6 +58,7 @@ class Peaklets(Plugin):
     extension overlaps with any peaks or other hits.
     """
     depends_on = ('records',)
+    save_when       = SaveWhen.ALWAYS
     provides = ('peaklets', 'lone_hits')
     data_kind = dict(peaklets='peaklets',
                      lone_hits='lone_hits')
@@ -39,52 +66,56 @@ class Peaklets(Plugin):
     compressor = 'zstd'
 
     __version__ = '1.1.0'
+    def setup(self):
+        self.peaklet_gap_threshold = self.config['peaklet_gap_threshold']
 
-    peaklet_gap_threshold = 300
+        self.peak_left_extension = self.config['peak_left_extension']
 
-    peak_left_extension = 100
+        self.peak_right_extension = self.config['peak_right_extension']
 
-    peak_right_extension = 100
+        self.peak_min_pmts = self.config['peak_min_pmts']
 
-    peak_min_pmts = 1
+        self.peak_split_gof_threshold = self.config['peak_split_gof_threshold']
 
-    peak_split_gof_threshold = (None,  # Reserved
-            ((0.5, 1.0), (6.0, 0.4)),
-            ((2.5, 1.0), (5.625, 0.4)))
+        self.peak_split_filter_wing_width = self.config['peak_split_filter_wing_width']
 
-    peak_split_filter_wing_width = 70
-    peak_split_min_area = 40
+        self.peak_split_min_area = self.config['peak_split_min_area']
 
-    peak_split_iterations = 20
+        self.peak_split_iterations = self.config['peak_split_iterations']
 
-    diagnose_sorting = False
-    
-    #### convert ADC to PE factor per channel
-    #  *DACC/resistance*sample_time_interval/electron_charge/PMT_gain 
-    gain_model = 1/np.array([2536865.78406119 ,2986336.7720512,  1296031.30463032,  939061.79084972,\
- 1393573.25812293, 1108898.53887087,  871986.42122379 ,3241079.79670144])*2/2**14/50/(1.6e-19)*1e-9*4 
+        self.diagnose_sorting = self.config['diagnose_sorting']
+        
+        self.gain_model = self.config['gain_model']
 
-    tight_coincidence_window_left = 300
+        self.tight_coincidence_window_left = self.config['tight_coincidence_window_left']
 
-    tight_coincidence_window_right = 300
+        self.tight_coincidence_window_right = self.config['tight_coincidence_window_right']
 
-    n_tpc_pmts = 8
+        self.n_tpc_pmts = self.config['n_tpc_pmts']
 
-    n_top_pmts = 4
+        self.n_top_pmts = self.config['n_top_pmts']
 
-    sum_waveform_top_array = False
+        self.sum_waveform_top_array = self.config['sum_waveform_top_array']
 
-    saturation_correction_on = False
+        self.saturation_correction_on = self.config['saturation_correction_on']
 
-    saturation_reference_length = 100
+        self.saturation_reference_length = self.config['saturation_reference_length']
 
-    saturation_min_reference_length = 20
+        self.saturation_min_reference_length = self.config['saturation_min_reference_length']
 
-    peaklet_max_duration = int(10e6)
+        self.peaklet_max_duration = self.config['peaklet_max_duration']
 
-    channel_map = immutabledict({'tpc':(0,7)})
+        self.channel_map = self.config['channel_map']
 
-    hit_min_amplitude = np.array([10,10,10,10,10,10,10,30])
+        self.hit_min_amplitude = self.config['hit_min_amplitude']
+
+        self.to_pe = self.gain_model
+
+        self.hit_thresholds = self.hit_min_amplitude
+
+        self.channel_range = self.channel_map['tpc']
+        return super().setup()
+
 
     def infer_dtype(self):
         return dict(
@@ -95,19 +126,7 @@ class Peaklets(Plugin):
             lone_hits=strax.hit_dtype,
         )
 
-    def setup(self):
-        # if self.peak_min_pmts > 2:
-        #     # Can fix by re-splitting,
-        #     raise NotImplementedError(
-        #         f"Raising the peak_min_pmts to {self.peak_min_pmts} "
-        #         f"interferes with lone_hit definition. "
-        #         f"See github.com/XENONnT/straxen/issues/295")
 
-        self.to_pe = self.gain_model
-
-        self.hit_thresholds = self.hit_min_amplitude
-
-        self.channel_range = self.channel_map['tpc']
 
     def compute(self, records, start, end):
         r = records

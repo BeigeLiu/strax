@@ -12,7 +12,7 @@ if len(sys.argv)<2:
 raw_record_site = strax.DataDirectory('/data1')
 st   = strax.Context(
                     register=[
-                    strax.CAENRecords_3,
+                    strax.CAENRecords,
                     strax.PulseProcessing,
                     strax.Peaklets,
                     strax.PeakletClassification],

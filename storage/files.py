@@ -2,6 +2,7 @@ import glob
 import json
 import os
 import os.path as osp
+from pdb import run
 from bson import json_util
 import bson
 import shutil
@@ -24,6 +25,7 @@ class DataDirectory(StorageFrontend):
     can_define_runs = True
     provide_run_metadata = False
     provide_superruns = True
+    deep_scan         = True
 
     def __init__(self, path='.', *args, deep_scan=False, **kwargs):
         """
@@ -37,7 +39,7 @@ class DataDirectory(StorageFrontend):
         super().__init__(*args, **kwargs)
         self.backends = [strax.FileSytemBackend()]
         self.path = path
-        self.deep_scan = deep_scan
+        self.deep_scan = True
         if not self.readonly and not osp.exists(self.path):
             os.makedirs(self.path)
 
@@ -70,7 +72,6 @@ class DataDirectory(StorageFrontend):
         These should be directly convertable to a pandas DataFrame.
         """
         found = set()
-
         # Yield metadata for runs for which we actually have it
         for md_path in sorted(glob.glob(
                 osp.join(self.path,
@@ -80,7 +81,6 @@ class DataDirectory(StorageFrontend):
             run_id = osp.basename(md_path).split('-')[0]
             found.add(run_id)
             yield self.run_metadata(run_id, projection=store_fields)
-
         if self.deep_scan:
             # Yield runs for which no metadata exists
             # we'll make "metadata" that consist only of the run name

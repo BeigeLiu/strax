@@ -5,6 +5,16 @@ import strax
 
 export, __all__ = strax.exporter()
 
+@strax.takes_config(
+    strax.Option('s1_risetime_area_parameters', type=tuple, default=(50,80,12)),
+    strax.Option('s1_risetime_aft_parameters', type=tuple, default=(-1,2.6), track=False),
+    strax.Option('s1_flatten_threshold_aft',type=tuple,default=(0.6,100)),
+    strax.Option('n_top_pmts', type=int, default=4, track=False),
+    strax.Option('s1_max_rise_time_post100',type=int,default=100,track=False),
+    strax.Option('s1_min_coincidence',type=int,default=2,track=False),
+    strax.Option('s2_min_pmts',type=int,default=2,track=False)
+)
+
 
 @export
 class PeakletClassification(Plugin):
@@ -13,23 +23,26 @@ class PeakletClassification(Plugin):
 
     provides = 'peaklet_classification'
     depends_on = ('peaklets',)
+    save_when       = SaveWhen.ALWAYS
     parallel = True
     dtype = (strax.peak_interval_dtype
              + [('type', np.int8, 'Classification of the peak(let)')])
 
-    s1_risetime_area_parameters = (50,80,12)
+    def setup(self):
+        self.s1_risetime_area_parameters = self.config['s1_risetime_area_parameters']
 
-    s1_risetime_aft_parameters = (-1,2.6)
+        self.s1_risetime_aft_parameters = self.config['s1_risetime_aft_parameters']
 
-    s1_flatten_threshold_aft = (0.6,100)
+        self.s1_flatten_threshold_aft = self.config['s1_flatten_threshold_aft']
 
-    n_top_pmts = 4
+        self.n_top_pmts = self.config['n_top_pmts']
 
-    s1_max_rise_time_post100 = 100
+        self.s1_max_rise_time_post100 = self.config['s1_max_rise_time_post100']
 
-    s1_min_coincidence = 2
+        self.s1_min_coincidence = self.config['s1_min_coincidence']
 
-    s2_min_pmts = 2
+        self.s2_min_pmts = self.config['s2_min_pmts']
+        return super().setup()
 
     @staticmethod
     def upper_rise_time_area_boundary(area, norm, const, tau):
@@ -50,7 +63,6 @@ class PeakletClassification(Plugin):
         ## aft: fraction
         res = 10 ** (slope * aft + offset)
         res[aft >= aft_boundary] = flat_threshold
-        print(res)
         return res
 
     def compute(self, peaklets):

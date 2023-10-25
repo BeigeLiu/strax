@@ -1,5 +1,6 @@
 import datetime
 import logging
+from operator import ne
 import warnings
 import fnmatch
 from functools import partial
@@ -1435,7 +1436,6 @@ class Context:
                 save=save,
                 max_workers=max_workers,
                 **kwargs)
-            print(source)
             results = [x.data for x in source]
         results = np.concatenate(results)
         return results
